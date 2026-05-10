@@ -10,6 +10,7 @@ from app.database.schema import (
 )
 from app.services.case_service import CaseService
 from app.services.user_service import UserService
+from app.database.models import User
 from app.core.security import get_current_user
 from app.utils.logger import get_logger
 
@@ -21,26 +22,25 @@ logger = get_logger(__name__)
 async def generate_case(
     request: CaseStudyGenerateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Generate a new case study.
     
     This endpoint orchestrates the entire case generation pipeline:
-    1. Authenticate user
-    2. Get or create user in database
-    3. Execute LangGraph workflow:
+    1. Authenticate user (via JWT dependency)
+    2. Execute LangGraph workflow:
        - Generate case via GROQ
        - Validate quality (auto-refine if needed, max 2 retries)
        - Save to database
-    4. Return complete case study
+    3. Return complete case study
     
     Expected response time: 1-5 seconds (depending on GROQ latency and refinements)
     
     Args:
         request: Case generation parameters
         db: Database session
-        current_user: Authenticated student_id (from JWT)
+        current_user: Authenticated User object
         
     Returns:
         Generated case study with metadata
@@ -53,16 +53,14 @@ async def generate_case(
     logger.info(
         "endpoint_generate_case",
         extra={
-            "student_id": current_user,
+            "student_id": current_user.student_id,
             "industry": request.industry,
             "complexity": request.complexity.value
         }
     )
 
     try:
-        # Get or create user
-        user_service = UserService(db)
-        user = await user_service.get_or_create_user(current_user)
+        user = current_user
 
         # Generate case
         case_service = CaseService(db)
@@ -79,7 +77,7 @@ async def generate_case(
             logger.error(
                 "case_generation_failed",
                 extra={
-                    "student_id": current_user,
+                    "student_id": user.student_id,
                     "error": result.get("error"),
                     "validation_errors": result.get("validation_errors", [])
                 }
@@ -94,7 +92,7 @@ async def generate_case(
         logger.info(
             "case_generated_response",
             extra={
-                "student_id": current_user,
+                "student_id": user.student_id,
                 "case_uuid": case.uuid,
                 "generation_time_ms": result.get("generation_time_ms"),
                 "tokens_used": result.get("tokens_used"),
@@ -102,7 +100,7 @@ async def generate_case(
             }
         )
 
-        return CaseStudyResponse.from_orm(case)
+        return CaseStudyResponse.model_validate(case)
 
     except HTTPException:
         raise
@@ -110,7 +108,7 @@ async def generate_case(
         logger.error(
             "case_generation_exception",
             extra={
-                "student_id": current_user,
+                "student_id": current_user.student_id if hasattr(current_user, 'student_id') else 'unknown',
                 "error": str(e),
                 "error_type": type(e).__name__
             }
@@ -125,7 +123,7 @@ async def generate_case(
 async def get_case(
     case_uuid: str,
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get a specific case study by UUID.
@@ -135,7 +133,7 @@ async def get_case(
     Args:
         case_uuid: Case UUID
         db: Database session
-        current_user: Authenticated student_id
+        current_user: Authenticated User object
         
     Returns:
         Case study details
@@ -147,15 +145,13 @@ async def get_case(
     logger.info(
         "endpoint_get_case",
         extra={
-            "student_id": current_user,
+            "student_id": current_user.student_id,
             "case_uuid": case_uuid
         }
     )
 
     try:
-        # Get user
-        user_service = UserService(db)
-        user = await user_service.get_or_create_user(current_user)
+        user = current_user
 
         # Get case
         case_service = CaseService(db)
@@ -165,7 +161,7 @@ async def get_case(
             logger.warning(
                 "case_not_found",
                 extra={
-                    "student_id": current_user,
+                    "student_id": user.student_id,
                     "case_uuid": case_uuid
                 }
             )
@@ -174,7 +170,7 @@ async def get_case(
                 detail="Case not found"
             )
 
-        return CaseStudyResponse.from_orm(case)
+        return CaseStudyResponse.model_validate(case)
 
     except HTTPException:
         raise
@@ -182,7 +178,7 @@ async def get_case(
         logger.error(
             "get_case_exception",
             extra={
-                "student_id": current_user,
+                "student_id": current_user.student_id,
                 "case_uuid": case_uuid,
                 "error": str(e)
             }
@@ -198,7 +194,7 @@ async def get_user_history(
     skip: int = Query(0, ge=0, description="Pagination skip"),
     limit: int = Query(10, ge=1, le=100, description="Pagination limit"),
     db: AsyncSession = Depends(get_db),
-    current_user: str = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get user's case study history (paginated).
@@ -209,7 +205,7 @@ async def get_user_history(
         skip: Number of cases to skip
         limit: Number of cases to return (max 100)
         db: Database session
-        current_user: Authenticated student_id
+        current_user: Authenticated User object
         
     Returns:
         List of cases with total count
@@ -220,16 +216,14 @@ async def get_user_history(
     logger.info(
         "endpoint_user_history",
         extra={
-            "student_id": current_user,
+            "student_id": current_user.student_id,
             "skip": skip,
             "limit": limit
         }
     )
 
     try:
-        # Get user
-        user_service = UserService(db)
-        user = await user_service.get_or_create_user(current_user)
+        user = current_user
 
         # Get cases
         case_service = CaseService(db)
@@ -242,7 +236,7 @@ async def get_user_history(
         logger.info(
             "user_history_retrieved",
             extra={
-                "student_id": current_user,
+                "student_id": user.student_id,
                 "total": result["total"],
                 "returned": len(result["cases"])
             }
@@ -250,14 +244,14 @@ async def get_user_history(
 
         return CaseStudyListResponse(
             total=result["total"],
-            cases=[CaseStudyResponse.from_orm(c) for c in result["cases"]]
+            cases=[CaseStudyResponse.model_validate(c) for c in result["cases"]]
         )
 
     except Exception as e:
         logger.error(
             "get_user_history_exception",
             extra={
-                "student_id": current_user,
+                "student_id": current_user.student_id,
                 "error": str(e)
             }
         )

@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function checkHealth() {
         try {
-            const res = await fetch("/health/detailed");
+            const res = await fetch("/api/v1/health");
             if (res.ok) {
                 healthIndicator.textContent = "System online";
                 healthIndicator.className = "health-status ok";

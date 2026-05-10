@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from typing import Dict, Any, Optional
 
+from app.core.config import settings
 from app.workflows.case_workflow import CaseStudyWorkflow
 from app.workflows.states import CaseWorkflowState, CaseGenerationInput
 from app.database.models import CaseStudy, User, ComplexityEnum
@@ -34,23 +35,6 @@ class CaseService:
     ) -> Dict[str, Any]:
         """
         Generate a case study using LangGraph workflow.
-        
-        This orchestrates:
-        1. Create initial workflow state
-        2. Execute LangGraph workflow (generate → validate → refine → save)
-        3. Save to database
-        4. Return result with metadata
-        
-        Args:
-            user_id: User ID generating the case
-            industry: Industry for the case
-            complexity: Difficulty level
-            focus_area: Optional specific focus
-            time_limit: Time limit in minutes
-            num_questions: Number of questions
-            
-        Returns:
-            Dict with success status and case data or error
         """
         logger.info(
             "case_generation_start",
@@ -104,15 +88,21 @@ class CaseService:
                 }
             )
 
+            # Convert string complexity to Enum member
+            try:
+                comp_enum = ComplexityEnum(complexity.lower())
+            except ValueError:
+                comp_enum = ComplexityEnum.INTERMEDIATE
+
             case = CaseStudy(
                 user_id=user_id,
                 title=final_state.final_case.get("title", f"{industry} Case Study"),
                 industry=industry,
-                complexity=complexity,
+                complexity=comp_enum,
                 focus_area=focus_area,
                 case_data=final_state.final_case,
                 generation_time_ms=final_state.total_time_ms,
-                model_used="mixtral-8x7b-32768",
+                model_used=settings.GROQ_MODEL,
                 tokens_used=final_state.groq_tokens_used,
                 refinement_count=final_state.refinement_count
             )
@@ -162,13 +152,6 @@ class CaseService:
     ) -> Optional[CaseStudy]:
         """
         Retrieve a case study by UUID (with user auth check).
-        
-        Args:
-            case_uuid: Case UUID
-            user_id: User ID (for auth verification)
-            
-        Returns:
-            CaseStudy object or None
         """
         try:
             query = select(CaseStudy).where(
@@ -176,12 +159,6 @@ class CaseService:
             )
             result = await self.db.execute(query)
             case = result.scalars().first()
-            
-            if not case:
-                logger.warning(
-                    "case_not_found",
-                    extra={"case_uuid": case_uuid, "user_id": user_id}
-                )
             
             return case
         
@@ -199,21 +176,13 @@ class CaseService:
         limit: int = 10
     ) -> Dict[str, Any]:
         """
-        Get paginated case history for a user.
-        
-        Args:
-            user_id: User ID
-            skip: Pagination skip
-            limit: Pagination limit
-            
-        Returns:
-            Dict with total count and case list
+        Get paginated case history for a user using optimized count.
         """
         try:
-            # Get total count
-            count_query = select(CaseStudy).where(CaseStudy.user_id == user_id)
+            # Get total count using aggregation (Optimized)
+            count_query = select(func.count()).select_from(CaseStudy).where(CaseStudy.user_id == user_id)
             count_result = await self.db.execute(count_query)
-            total = len(count_result.scalars().all())
+            total = count_result.scalar() or 0
 
             # Get paginated cases (newest first)
             query = select(CaseStudy).where(
@@ -224,15 +193,6 @@ class CaseService:
 
             result = await self.db.execute(query)
             cases = result.scalars().all()
-
-            logger.info(
-                "user_cases_retrieved",
-                extra={
-                    "user_id": user_id,
-                    "total": total,
-                    "returned": len(cases)
-                }
-            )
 
             return {
                 "total": total,
@@ -255,20 +215,21 @@ class CaseService:
 
     async def get_user_stats(self, user_id: int) -> Dict[str, Any]:
         """
-        Get statistics for a user.
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Dict with user statistics
+        Get statistics for a user using database aggregation.
         """
         try:
-            query = select(CaseStudy).where(CaseStudy.user_id == user_id)
-            result = await self.db.execute(query)
-            cases = result.scalars().all()
+            # Optimized aggregation query
+            stats_query = select(
+                func.count(CaseStudy.id).label("total_cases"),
+                func.sum(CaseStudy.tokens_used).label("total_tokens"),
+                func.sum(CaseStudy.generation_time_ms).label("total_time"),
+                func.avg(CaseStudy.generation_time_ms).label("avg_time")
+            ).where(CaseStudy.user_id == user_id)
+            
+            stats_result = await self.db.execute(stats_query)
+            stats = stats_result.one()
 
-            if not cases:
+            if not stats.total_cases:
                 return {
                     "total_cases": 0,
                     "total_tokens_used": 0,
@@ -277,15 +238,16 @@ class CaseService:
                     "industries": []
                 }
 
-            total_tokens = sum(c.tokens_used or 0 for c in cases)
-            total_time = sum(c.generation_time_ms or 0 for c in cases)
-            industries = list(set(c.industry for c in cases))
+            # Get distinct industries
+            ind_query = select(CaseStudy.industry).where(CaseStudy.user_id == user_id).distinct()
+            ind_result = await self.db.execute(ind_query)
+            industries = [r for r in ind_result.scalars().all()]
 
             return {
-                "total_cases": len(cases),
-                "total_tokens_used": total_tokens,
-                "total_generation_time_ms": total_time,
-                "avg_generation_time_ms": total_time // len(cases) if cases else 0,
+                "total_cases": stats.total_cases,
+                "total_tokens_used": int(stats.total_tokens or 0),
+                "total_generation_time_ms": int(stats.total_time or 0),
+                "avg_generation_time_ms": int(stats.avg_time or 0),
                 "industries": industries
             }
 

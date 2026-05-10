@@ -1,10 +1,17 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
+from app.database.db import get_db
+from app.services.user_service import UserService
 from app.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from app.database.models import User
 
 logger = get_logger(__name__)
 security = HTTPBearer()
@@ -43,17 +50,30 @@ def verify_token(token: str) -> Optional[str]:
         return None
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Dependency to get current authenticated user"""
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> "User":
+    """Dependency to get current authenticated user object"""
     token = credentials.credentials
     student_id = verify_token(token)
     
     if student_id is None:
-        logger.warning("Invalid token attempt")
+        logger.warning("invalid_token_attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    return student_id
+    user_service = UserService(db)
+    user = await user_service.get_user_by_student_id(student_id)
+    
+    if user is None:
+        logger.warning("authenticated_user_not_found", extra={"student_id": student_id})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+        
+    return user
