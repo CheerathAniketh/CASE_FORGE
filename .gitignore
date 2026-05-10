@@ -1,0 +1,40 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual env
+venv/
+.env/
+.env.* 
+!.env.example
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Testing / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Migrations / DB
+*.sqlite3
+*.db
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# Misc
+*.swp
+
+.env
