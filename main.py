@@ -1,11 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 import logging
 
 from app.core.config import settings
 from app.api.v1.router import router as api_v1_router
 from app.middleware.error_handler import setup_exception_handlers
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.database.db import init_db
 from app.utils.logger import setup_logging, get_logger
 
@@ -69,6 +72,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add Rate Limiting middleware
+app.add_middleware(RateLimitMiddleware)
+
 # Setup exception handlers
 setup_exception_handlers(app)
 
@@ -76,15 +82,15 @@ setup_exception_handlers(app)
 app.include_router(api_v1_router)
 
 
+# Mount static files and templates
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+
 # Root endpoint
 @app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.VERSION,
-        "status": "running"
-    }
+async def root(request: Request):
+    """Root endpoint (Demo UI)"""
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 if __name__ == "__main__":
