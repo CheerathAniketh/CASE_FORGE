@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
+import re
 
 from app.core.security import create_access_token
 from app.services.user_service import UserService
@@ -32,19 +33,28 @@ async def login(
     user_service = UserService(db)
     
     try:
+        student_id = auth_data.student_id.strip() if auth_data.student_id else ""
+        if len(student_id) < 3 or not re.fullmatch(r"[A-Za-z0-9_-]+", student_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid student_id format"
+            )
+
         # Get or create user based on student_id
         await user_service.get_or_create_user(
-            student_id=auth_data.student_id,
+            student_id=student_id,
             email=auth_data.email
         )
         
         # Create access token
-        access_token = create_access_token(student_id=auth_data.student_id)
+        access_token = create_access_token(student_id=student_id)
         
         return TokenResponse(access_token=access_token)
         
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Authentication failed: {str(e)}"
+            detail="Authentication failed"
         )

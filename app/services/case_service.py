@@ -137,12 +137,15 @@ class CaseService:
                     "user_id": user_id,
                     "error": str(e),
                     "error_type": type(e).__name__
-                }
+                },
+                exc_info=True
             )
             await self.db.rollback()
             return {
                 "success": False,
-                "error": "Internal server error during case generation"
+                "error": "Case generation failed",
+                "error_code": "CASE_GENERATION_ERROR",
+                "error_type": type(e).__name__
             }
 
     async def get_case_by_uuid(

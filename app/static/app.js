@@ -179,16 +179,24 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    copyJsonBtn.addEventListener("click", () => {
+    copyJsonBtn.addEventListener("click", async () => {
         if (!latestCasePayload) return;
-        copyToClipboard(JSON.stringify(latestCasePayload.case_data, null, 2));
-        showToast("Copied", "Case JSON copied to clipboard.", "success");
+        const copied = await copyToClipboard(JSON.stringify(latestCasePayload.case_data, null, 2));
+        showToast(
+            copied ? "Copied" : "Copy failed",
+            copied ? "Case JSON copied to clipboard." : "Clipboard access failed.",
+            copied ? "success" : "error"
+        );
     });
 
-    copyTextBtn.addEventListener("click", () => {
+    copyTextBtn.addEventListener("click", async () => {
         if (!latestCasePayload) return;
-        copyToClipboard(formatCaseText(latestCasePayload.case_data));
-        showToast("Copied", "Case text copied to clipboard.", "success");
+        const copied = await copyToClipboard(formatCaseText(latestCasePayload.case_data));
+        showToast(
+            copied ? "Copied" : "Copy failed",
+            copied ? "Case text copied to clipboard." : "Clipboard access failed.",
+            copied ? "success" : "error"
+        );
     });
 
     exportJsonBtn.addEventListener("click", () => {
@@ -244,79 +252,148 @@ document.addEventListener("DOMContentLoaded", () => {
         resultSection.classList.remove("hidden");
 
         const cd = data.case_data;
-        caseMetadata.innerHTML = buildMetaCards(data);
+        buildMetaCards(data);
 
-        let html = `<h1>${cd.title}</h1>`;
+        caseContent.textContent = ""; // Clear existing
+
+        const createEl = (tag, text, className) => {
+            const el = document.createElement(tag);
+            if (text) el.textContent = text;
+            if (className) el.className = className;
+            return el;
+        };
+
+        const createStrongText = (strongText, plainText) => {
+            const p = document.createElement("p");
+            const strong = document.createElement("strong");
+            strong.textContent = strongText;
+            p.appendChild(strong);
+            p.appendChild(document.createTextNode(" " + plainText));
+            return p;
+        };
+
+        caseContent.appendChild(createEl("h1", cd.title || "Untitled"));
+
         if (cd.executive_summary) {
-            html += `<div class="case-block"><h3>Executive Summary</h3><p>${cd.executive_summary}</p></div>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Executive Summary"));
+            block.appendChild(createEl("p", cd.executive_summary));
+            caseContent.appendChild(block);
         }
 
         if (cd.background) {
-            html += `<div class="case-block"><h3>Background</h3>
-            <p><strong>Company:</strong> ${cd.background.company_name} (Est. ${cd.background.founded_year})</p>
-            <p><strong>Context:</strong> ${cd.background.company_context}</p>
-            <p><strong>Market:</strong> ${cd.background.market_situation}</p>
-            <p><strong>Key Players:</strong> ${cd.background.key_players}</p></div>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Background"));
+            block.appendChild(createStrongText("Company:", `${cd.background.company_name} (Est. ${cd.background.founded_year})`));
+            block.appendChild(createStrongText("Context:", cd.background.company_context));
+            block.appendChild(createStrongText("Market:", cd.background.market_situation));
+            block.appendChild(createStrongText("Key Players:", cd.background.key_players));
+            caseContent.appendChild(block);
         }
 
-        html += `<div class="case-block"><h3>Problem Statement</h3><p>${cd.problem_statement}</p></div>`;
+        if (cd.problem_statement) {
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Problem Statement"));
+            block.appendChild(createEl("p", cd.problem_statement));
+            caseContent.appendChild(block);
+        }
 
         if (cd.current_situation) {
-            html += `<div class="case-block"><h3>Current Situation</h3>
-            <p><strong>Challenges:</strong> ${cd.current_situation.challenges?.join(", ") || ""}</p>
-            <p><strong>Opportunities:</strong> ${cd.current_situation.opportunities?.join(", ") || ""}</p>
-            <p><strong>Constraints:</strong> ${cd.current_situation.constraints?.join(", ") || ""}</p></div>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Current Situation"));
+            block.appendChild(createStrongText("Challenges:", cd.current_situation.challenges?.join(", ") || ""));
+            block.appendChild(createStrongText("Opportunities:", cd.current_situation.opportunities?.join(", ") || ""));
+            block.appendChild(createStrongText("Constraints:", cd.current_situation.constraints?.join(", ") || ""));
+            caseContent.appendChild(block);
         }
 
         if (cd.financial_data) {
-            html += `<div class="case-block"><h3>Financial Data</h3><ul>
-                <li>Revenue: $${cd.financial_data.current_revenue_millions}M</li>
-                <li>Market Size: $${cd.financial_data.market_size_billions}B</li>
-                <li>Growth Rate: ${cd.financial_data.growth_rate_percent}%</li>
-                <li>Profit Margin: ${cd.financial_data.profit_margin_percent}%</li>
-            </ul></div>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Financial Data"));
+            const ul = document.createElement("ul");
+            ul.appendChild(createEl("li", `Revenue: $${cd.financial_data.current_revenue_millions}M`));
+            ul.appendChild(createEl("li", `Market Size: $${cd.financial_data.market_size_billions}B`));
+            ul.appendChild(createEl("li", `Growth Rate: ${cd.financial_data.growth_rate_percent}%`));
+            ul.appendChild(createEl("li", `Profit Margin: ${cd.financial_data.profit_margin_percent}%`));
+            block.appendChild(ul);
+            caseContent.appendChild(block);
         }
 
         if (cd.discussion_questions?.length) {
-            html += `<div class="case-block"><h3>Discussion Questions</h3><ul>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Discussion Questions"));
+            const ul = document.createElement("ul");
             cd.discussion_questions.forEach((q) => {
-                html += `<li><strong>${q.focus_area}:</strong> ${q.question}<br><small><em>Hint: ${q.hint}</em></small></li>`;
+                const li = document.createElement("li");
+                const strong = document.createElement("strong");
+                strong.textContent = `${q.focus_area || "Question"}: `;
+                li.appendChild(strong);
+                li.appendChild(document.createTextNode(q.question || ""));
+                li.appendChild(document.createElement("br"));
+                const small = document.createElement("small");
+                const em = document.createElement("em");
+                em.textContent = `Hint: ${q.hint || ""}`;
+                small.appendChild(em);
+                li.appendChild(small);
+                ul.appendChild(li);
             });
-            html += `</ul></div>`;
+            block.appendChild(ul);
+            caseContent.appendChild(block);
         }
 
         if (cd.solution_framework) {
-            html += `<div class="case-block"><h3>Solution Framework</h3>
-            <p>${cd.solution_framework.recommended_approach}</p>
-            <ul>${(cd.solution_framework.implementation_steps || []).map(step => `<li>${step}</li>`).join("")}</ul>
-            <p><strong>Expected outcomes:</strong> ${cd.solution_framework.expected_outcomes}</p>
-            <p><strong>Timeline:</strong> ${cd.solution_framework.timeline}</p></div>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Solution Framework"));
+            block.appendChild(createEl("p", cd.solution_framework.recommended_approach));
+            
+            const ul = document.createElement("ul");
+            (cd.solution_framework.implementation_steps || []).forEach(step => {
+                ul.appendChild(createEl("li", step));
+            });
+            block.appendChild(ul);
+            
+            block.appendChild(createStrongText("Expected outcomes:", cd.solution_framework.expected_outcomes));
+            block.appendChild(createStrongText("Timeline:", cd.solution_framework.timeline));
+            caseContent.appendChild(block);
         }
 
         if (cd.key_learnings?.length) {
-            html += `<div class="case-block"><h3>Key Learnings</h3><ul>`;
+            const block = createEl("div", "", "case-block");
+            block.appendChild(createEl("h3", "Key Learnings"));
+            const ul = document.createElement("ul");
             cd.key_learnings.forEach((l) => {
-                html += `<li>${l}</li>`;
+                ul.appendChild(createEl("li", l));
             });
-            html += `</ul></div>`;
+            block.appendChild(ul);
+            caseContent.appendChild(block);
         }
-
-        caseContent.innerHTML = html;
     }
 
     function buildMetaCards(data) {
+        caseMetadata.textContent = ""; // Clear existing
+        const validationScore = Number(data.validation_score);
         const items = [
             { label: "Generation time", value: data.generation_time_ms ? `${data.generation_time_ms} ms` : "-" },
             { label: "Tokens used", value: data.tokens_used ?? "-" },
             { label: "Model", value: data.model_used || "-" },
-            { label: "Validation score", value: data.validation_score != null ? data.validation_score.toFixed(2) : "-" },
+            { label: "Validation score", value: Number.isFinite(validationScore) ? validationScore.toFixed(2) : "-" },
             { label: "Refinement retries", value: data.refinement_count ?? 0 },
             { label: "Workflow status", value: data.workflow_status || "-" }
         ];
 
-        return items.map(item => {
-            return `<div class="meta-card"><div class="meta-label">${item.label}</div><div class="meta-value">${item.value}</div></div>`;
-        }).join("");
+        items.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "meta-card";
+            const labelEl = document.createElement("div");
+            labelEl.className = "meta-label";
+            labelEl.textContent = item.label;
+            const valueEl = document.createElement("div");
+            valueEl.className = "meta-value";
+            valueEl.textContent = item.value;
+            card.appendChild(labelEl);
+            card.appendChild(valueEl);
+            caseMetadata.appendChild(card);
+        });
     }
 
     function startProgressAnimation() {
@@ -377,13 +454,28 @@ document.addEventListener("DOMContentLoaded", () => {
     function showToast(title, message, type = "success") {
         const toast = document.createElement("div");
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<div class="toast-title">${title}</div><div class="toast-body">${message}</div>`;
+        const titleEl = document.createElement("div");
+        titleEl.className = "toast-title";
+        titleEl.textContent = title;
+        const bodyEl = document.createElement("div");
+        bodyEl.className = "toast-body";
+        bodyEl.textContent = message;
+        toast.appendChild(titleEl);
+        toast.appendChild(bodyEl);
         toastContainer.appendChild(toast);
         setTimeout(() => toast.remove(), 4000);
     }
 
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text);
+    async function copyToClipboard(text) {
+        try {
+            if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+                return false;
+            }
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     function downloadFile(filename, content) {

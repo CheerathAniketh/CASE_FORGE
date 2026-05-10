@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 from app.core.config import settings
 from app.database.models import Base
 
@@ -48,7 +49,7 @@ async def check_db_connection() -> bool:
     """Check if database is accessible"""
     try:
         async with AsyncSessionLocal() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
         return True
     except Exception:
         return False

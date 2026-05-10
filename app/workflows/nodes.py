@@ -1,6 +1,7 @@
 import json
 import time
 import re
+import asyncio
 from typing import Dict, Any, Optional
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
@@ -62,7 +63,10 @@ class CaseWorkflowNodes:
 
             start_time = time.time()
             message = HumanMessage(content=prompt)
-            response = await llm.ainvoke([message])
+            response = await asyncio.wait_for(
+                llm.ainvoke([message]),
+                timeout=settings.GROQ_TIMEOUT
+            )
             elapsed_ms = int((time.time() - start_time) * 1000)
 
             raw_case = response.content
@@ -70,10 +74,8 @@ class CaseWorkflowNodes:
 
             try:
                 case_json = json.loads(cleaned_case)
-                parsed_successfully = True
             except json.JSONDecodeError as e:
                 case_json = None
-                parsed_successfully = False
                 logger.warning(
                     "json_parse_failed",
                     extra={
@@ -160,7 +162,10 @@ class CaseWorkflowNodes:
             )
 
             message = HumanMessage(content=prompt)
-            response = await llm.ainvoke([message])
+            response = await asyncio.wait_for(
+                llm.ainvoke([message]),
+                timeout=settings.GROQ_TIMEOUT
+            )
             
             raw_case = response.content
             cleaned_case = clean_json_response(raw_case)

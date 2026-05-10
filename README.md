@@ -159,7 +159,7 @@ curl http://localhost:8000/api/v1/case-studies/{uuid} \
 ### 5. Health Check
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/health
 ```
 
 ## 📁 Project Structure
@@ -231,7 +231,7 @@ All events logged as JSON for easy parsing:
 
 ## 🔐 Security
 
-- **JWT Authentication:** All endpoints except `/health` require JWT
+- **JWT Authentication:** All endpoints except `/api/v1/health` require JWT
 - **Token Expiry:** 24 hours (configurable)
 - **CORS:** Configurable allowed origins
 - **Input Validation:** Pydantic schemas validate all inputs
@@ -300,7 +300,7 @@ LOG_LEVEL=DEBUG uvicorn main:app
 
 ### Test GROQ Connection
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/health
 ```
 
 ## 📝 Environment Variables
@@ -328,7 +328,7 @@ For issues:
 1. Check logs: `docker logs caseforge_api`
 2. Verify `.env` is set up
 3. Ensure PostgreSQL is running
-4. Test `/health` endpoint
+4. Test `/api/v1/health` endpoint
 
 ## 📄 License
 

@@ -1,4 +1,5 @@
 import time
+import ipaddress
 from typing import Dict, Tuple
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -21,6 +22,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Structure: { key: (timestamp_first_request, request_count) }
         self.cache: Dict[str, Tuple[float, int]] = {}
         self.rate_limited_paths = {"/api/v1/case-studies/generate"}
+        # In-memory and per-process by design (MVP-safe baseline).
+        self.max_cache_size = 10000
+        self.evict_batch_size = 1000
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -28,12 +32,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path not in self.rate_limited_paths:
             return await call_next(request)
 
-        # Handle proxies (X-Forwarded-For)
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            client_ip = forwarded.split(",")[0].strip()
-        else:
-            client_ip = request.client.host if request.client else "unknown"
+        client_ip = self._get_client_ip(request)
 
         cache_key = f"{client_ip}:{path}"
         
@@ -68,14 +67,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def _check_rate_limit(self, cache_key: str, limit: int, window: int) -> bool:
         current_time = time.time()
-        
-        # Periodic cleanup of stale entries without dumping the entire cache
-        if len(self.cache) > 5000:
-            # Sort by timestamp and remove oldest 1000 entries
-            # This is a bit expensive but safer than clearing everything
-            sorted_keys = sorted(self.cache.keys(), key=lambda k: self.cache[k][0])
-            for k in sorted_keys[:1000]:
-                del self.cache[k]
+
+        # Periodic cleanup of stale entries first, then bounded eviction.
+        if len(self.cache) > self.max_cache_size:
+            stale_keys = [
+                key for key, (window_start, _) in self.cache.items()
+                if current_time - window_start > window
+            ]
+            for key in stale_keys:
+                self.cache.pop(key, None)
+
+            if len(self.cache) > self.max_cache_size:
+                evicted = 0
+                for key in list(self.cache.keys()):
+                    self.cache.pop(key, None)
+                    evicted += 1
+                    if evicted >= self.evict_batch_size:
+                        break
 
         if cache_key not in self.cache:
             self.cache[cache_key] = (current_time, 1)
@@ -94,3 +102,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Increment count
         self.cache[cache_key] = (window_start, count + 1)
         return False
+
+    def _get_client_ip(self, request: Request) -> str:
+        direct_ip = request.client.host if request.client and request.client.host else "unknown"
+
+        # Only trust X-Forwarded-For when immediate peer looks like a proxy/local hop.
+        try:
+            peer_ip = ipaddress.ip_address(direct_ip)
+            trust_forwarded = peer_ip.is_loopback or peer_ip.is_private
+        except ValueError:
+            trust_forwarded = False
+
+        if not trust_forwarded:
+            return direct_ip
+
+        forwarded = request.headers.get("X-Forwarded-For")
+        if not forwarded:
+            return direct_ip
+
+        candidate = forwarded.split(",")[0].strip()
+        try:
+            ipaddress.ip_address(candidate)
+            return candidate
+        except ValueError:
+            return direct_ip
