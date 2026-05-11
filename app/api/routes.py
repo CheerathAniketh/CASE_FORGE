@@ -3,12 +3,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db_session
-from app.services.case import CaseService
+from app.services.workflow import WorkflowService
 from app.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["cases"])
+router = APIRouter(prefix="/api/v1")
 
 
 # ============ REQUEST/RESPONSE MODELS ============
@@ -34,11 +34,11 @@ async def generate_case(
     request: GenerateCaseRequest,
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Generate a new case study"""
+    """Generate a new case study using LangGraph workflow"""
     logger.info(f"User {request.user_id} generating case: {request.industry}")
     
-    service = CaseService(db)
-    result = await service.generate_case(
+    service = WorkflowService(db)
+    result = await service.generate_case_with_workflow(
         user_id=request.user_id,
         industry=request.industry,
         complexity=request.complexity,
@@ -59,7 +59,8 @@ async def generate_case(
         "industry": case.industry,
         "complexity": case.complexity.value,
         "case_data": case.case_data,
-        "generation_time_ms": result["elapsed_ms"],
+        "generation_time_ms": result["total_time_ms"],
+        "refinements_used": result["refinements_used"],
     }
 
 
