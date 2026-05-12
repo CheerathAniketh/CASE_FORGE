@@ -26,10 +26,11 @@ class CaseWorkflowNodes:
     @staticmethod
     async def generate_case(state: CaseWorkflowState) -> Dict[str, Any]:
         """
-        Node 1: Generate raw case from Groq
+        Node 1: Generate raw case from Groq with tool data
         
+        Uses tools to gather market data, financial benchmarks, and competitive intelligence
         Input: state with user input (industry, complexity, focus)
-        Output: raw case text + parsed JSON
+        Output: raw case text + parsed JSON (enhanced with tool data)
         """
         logger.info(
             "node_generate_case_start",
@@ -41,17 +42,62 @@ class CaseWorkflowNodes:
         )
 
         try:
+            from app.tools import CaseStudyTools
+            
             groq = GroqService()
             
+            # ===== GATHER TOOL DATA =====
+            logger.info("node_generate_case_gathering_tools")
+            
+            market_data = CaseStudyTools.market_research(state.input.industry)
+            financial_data = CaseStudyTools.financial_analysis(state.input.industry)
+            competitive_data = CaseStudyTools.competitive_intelligence(state.input.industry)
+            
+            logger.info(
+                "node_generate_case_tools_gathered",
+                extra={
+                    "tools": ["market_research", "financial_analysis", "competitive_intelligence"]
+                }
+            )
+            
+            # ===== ENHANCE PROMPT WITH TOOL DATA =====
             prompt = get_case_generation_prompt(
                 industry=state.input.industry,
                 complexity=state.input.complexity,
                 focus_area=state.input.focus_area,
                 time_limit=state.input.time_limit,
             )
+            
+            # Add tool data context to prompt
+            tool_context = f"""
+Additional Context from Real Data Tools:
 
-            # Call Groq
-            raw_response = await groq.call(prompt)
+MARKET RESEARCH:
+- Market Size: {market_data.get('market_size', 'N/A')}
+- Growth Rate: {market_data.get('growth_rate', 'N/A')}
+- Key Trends: {', '.join(market_data.get('key_trends', []))}
+- Major Competitors: {', '.join(market_data.get('major_competitors', []))}
+- Market Dynamics: {market_data.get('market_dynamics', 'N/A')}
+
+FINANCIAL BENCHMARKS:
+- CAC: {financial_data.get('unit_economics', {}).get('cac', 'N/A')}
+- LTV: {financial_data.get('unit_economics', {}).get('ltv', 'N/A')}
+- Payback Period: {financial_data.get('unit_economics', {}).get('payback_months', 'N/A')} months
+- Gross Margin: {financial_data.get('unit_economics', {}).get('gross_margin', 'N/A')}
+- Churn Rate: {financial_data.get('unit_economics', {}).get('churn', 'N/A')}
+
+COMPETITIVE LANDSCAPE:
+- Threat Level: {competitive_data.get('threat_level', 'N/A')}
+- Defensibility: {competitive_data.get('defensibility', 'N/A')}
+- White Space Opportunities: {', '.join(competitive_data.get('white_space', []))}
+
+Use this real data to create a grounded, realistic case study that reflects actual market conditions.
+"""
+            
+            enhanced_prompt = prompt + "\n" + tool_context
+            
+            # Call Groq with enhanced prompt
+            raw_response = await groq.call(enhanced_prompt)
             
             # Parse JSON
             cleaned_response = _clean_json_response(raw_response)
