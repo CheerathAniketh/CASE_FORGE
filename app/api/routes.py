@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.db import get_db_session
+from app.services.case import CaseService
 from app.services.workflow import WorkflowService
 from app.logger import get_logger
 
@@ -16,7 +18,7 @@ router = APIRouter(prefix="/api/v1")
 class GenerateCaseRequest(BaseModel):
     user_id: int
     industry: str
-    complexity: str  # beginner, intermediate, advanced
+    complexity: str
     focus_area: str = None
     time_limit: int = 60
 
@@ -34,7 +36,7 @@ async def generate_case(
     request: GenerateCaseRequest,
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Generate a new case study using LangGraph workflow"""
+    """Generate a new case study using LangGraph"""
     logger.info(f"User {request.user_id} generating case: {request.industry}")
     
     service = WorkflowService(db)
@@ -94,7 +96,6 @@ async def evaluate_solution(
 @router.get("/cases/{case_id}")
 async def get_case(case_id: int, db: AsyncSession = Depends(get_db_session)):
     """Get a specific case study"""
-    from sqlalchemy import select
     from app.models import CaseStudy
     
     query = select(CaseStudy).where(CaseStudy.id == case_id)
