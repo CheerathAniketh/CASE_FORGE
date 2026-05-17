@@ -21,25 +21,25 @@ async def lifespan(app: FastAPI):
     """
     # ===== STARTUP =====
     logger.info("="*60)
-    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.VERSION}")
+    logger.info(f"Starting {settings.APP_NAME} v{settings.VERSION}")
     logger.info("="*60)
     
     try:
         # Initialize database
-        logger.info("📦 Initializing database...")
+        logger.info("Initializing database...")
         await init_db()
-        logger.info("✅ Database initialized")
+        logger.info("Database initialized")
         
         # Test Groq connection
-        logger.info("🔌 Testing Groq API connection...")
+        logger.info("Testing Groq API connection...")
         groq = GroqService()
         connection_ok = await groq.test_connection()
         if connection_ok:
-            logger.info("✅ Groq API connection successful")
+            logger.info("Groq API connection successful")
         else:
             logger.warning("⚠️  Groq API connection test failed")
         
-        logger.info(f"🎯 Ready at http://{settings.HOST}:{settings.PORT}")
+        logger.info(f"Ready at http://{settings.HOST}:{settings.PORT}")
         
     except Exception as e:
         logger.error(f"❌ Startup failed: {str(e)}")
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # ===== SHUTDOWN =====
-    logger.info("🛑 Shutting down...")
+    logger.info("Shutting down...")
 
 
 # Create FastAPI app
