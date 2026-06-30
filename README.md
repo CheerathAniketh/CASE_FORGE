@@ -373,40 +373,6 @@ CaseStudyTools.competitive_intelligence(industry, segment)
 
 ---
 
-## Development Roadmap
-
-### Phase 1 ✅ (May 11)
-- ✅ FastAPI server
-- ✅ Groq LLM integration
-- ✅ Basic case generation
-- ✅ Solution evaluation
-- ✅ SQLite database
-
-### Phase 2 ✅ (May 12)
-- ✅ LangGraph state machine
-- ✅ Validation + refinement workflow
-- ✅ Tools (market research, financial analysis)
-- ✅ Competitive intelligence
-
-### Phase 3 (May 13-15)
-- [ ] Authentication (JWT)
-- [ ] Difficulty progression (adaptive)
-- [ ] WebSocket streaming
-- [ ] Progress dashboard
-
-### Phase 4 (May 16-24)
-- [ ] Deployment to production
-- [ ] Load testing (1000+ concurrent)
-- [ ] Monitoring & alerting
-- [ ] Documentation & tutorials
-
-### Phase 5 (May 25)
-- [ ] Final demo
-- [ ] Performance optimization
-- [ ] Feedback incorporation
-
----
-
 ## Contributing
 
 1. Create a feature branch
