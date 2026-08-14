@@ -59,14 +59,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware
+# ===== CORS FIX APPLIED HERE =====
+# Define explicitly allowed origins to securely support allow_credentials=True
+origins = [
+    "http://127.0.0.1:5500",  # Your VS Code Live Server
+    "http://localhost:5500",  # Alternative local address
+    "http://localhost:3000",  # Default React/Next.js port (future-proofing)
+    "http://localhost:8501",  # Default Streamlit port (for your app_ui.py)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# =================================
 
 # Include routers
 app.include_router(api_router)

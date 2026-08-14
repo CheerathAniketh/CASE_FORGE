@@ -149,17 +149,20 @@ class CaseService:
                 "feasibility": evaluation.get("feasibility", 0),
             }
             
-            # Save solution record
+            # ===== FIX APPLIED HERE: Map all 6 metrics exactly to the new DB schema =====
             user_solution = UserSolution(
                 user_id=user_id,
                 case_id=case_id,
                 solution_text=solution_text,
                 overall_score=scores["overall"],
-                reasoning_score=scores["analytical_rigor"],
+                problem_understanding_score=scores["problem_understanding"],
+                analytical_rigor_score=scores["analytical_rigor"],
+                feasibility_score=scores["feasibility"],
                 communication_score=scores["communication"],
                 business_acumen_score=scores["business_acumen"],
                 feedback_data=evaluation,
             )
+            # ============================================================================
             
             self.db.add(user_solution)
             await self.db.commit()

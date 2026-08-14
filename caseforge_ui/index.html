@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CaseForge — AI Case Study Generator</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- ================= SIDEBAR ================= -->
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-mark">CF</div>
+            <div>
+                <h2>CaseForge</h2>
+                <span>AI Case Platform</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <p class="nav-label">MAIN</p>
+
+            <button class="nav-item active" data-page="dashboard">
+                <span class="nav-icon">⌂</span>
+                <span>Dashboard</span>
+            </button>
+
+            <button class="nav-item" data-page="evaluate">
+                <span class="nav-icon">✦</span>
+                <span>Evaluate Solution</span>
+            </button>
+
+            <button class="nav-item" data-page="history">
+                <span class="nav-icon">◫</span>
+                <span>Case History</span>
+            </button>
+
+            <button class="nav-item" data-page="analytics">
+                <span class="nav-icon">◒</span>
+                <span>Analytics</span>
+            </button>
+
+            <p class="nav-label secondary-label">ACCOUNT</p>
+
+            <button class="nav-item">
+                <span class="nav-icon">⚙</span>
+                <span>API & Profile</span>
+            </button>
+
+            <button class="nav-item" id="logoutBtn">
+                <span class="nav-icon">↪</span>
+                <span>Logout</span>
+            </button>
+
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-dot"></div>
+            <div>
+                <strong>Backend Connected</strong>
+                <small>localhost:8000</small>
+            </div>
+        </div>
+
+    </aside>
+
+
+    <!-- ================= MAIN ================= -->
+
+    <main class="main">
+
+        <!-- TOP HEADER -->
+
+        <header class="topbar">
+
+            <div class="search-box">
+                <span>⌕</span>
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Search cases..."
+                >
+            </div>
+
+            <div class="topbar-right">
+
+                <button class="icon-button">
+                    🔔
+                    <span class="notification-dot"></span>
+                </button>
+
+                <div class="language">
+                    🇬🇧
+                    <span>English</span>
+                    ▾
+                </div>
+
+                <div class="profile">
+                    <div class="avatar">KA</div>
+
+                    <div class="profile-info">
+                        <strong>Karthik</strong>
+                        <small>Student</small>
+                    </div>
+
+                    <span>⌄</span>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- ================= DASHBOARD PAGE ================= -->
+
+        <section id="dashboardPage" class="page active-page">
+
+            <div class="page-heading">
+
+                <div>
+                    <span class="eyebrow">Dashboard #1</span>
+                    <h1>Dashboard</h1>
+                    <p>
+                        Generate, solve and evaluate AI-powered business cases.
+                    </p>
+                </div>
+
+                <button class="primary-button" id="quickForgeBtn">
+                    + Forge New Case
+                </button>
+
+            </div>
+
+
+            <!-- METRICS -->
+
+            <div class="metrics-grid">
+
+                <div class="metric-card">
+
+                    <div class="metric-top">
+                        <span>Cases Forged</span>
+                        <div class="metric-icon purple">✦</div>
+                    </div>
+
+                    <h2 id="casesForged">0</h2>
+
+                    <span class="metric-change positive">
+                        ↗ Your generated cases
+                    </span>
+
+                </div>
+
+
+                <div class="metric-card">
+
+                    <div class="metric-top">
+                        <span>Evaluations</span>
+                        <div class="metric-icon yellow">◈</div>
+                    </div>
+
+                    <h2 id="evaluationsCount">0</h2>
+
+                    <span class="metric-change positive">
+                        ↗ Solutions evaluated
+                    </span>
+
+                </div>
+
+
+                <div class="metric-card">
+
+                    <div class="metric-top">
+                        <span>Average Score</span>
+                        <div class="metric-icon green">✓</div>
+                    </div>
+
+                    <h2 id="averageScore">—</h2>
+
+                    <span class="metric-change">
+                        Your current performance
+                    </span>
+
+                </div>
+
+
+                <div class="metric-card">
+
+                    <div class="metric-top">
+                        <span>Target Industry</span>
+                        <div class="metric-icon orange">◎</div>
+                    </div>
+
+                    <h2 id="targetIndustry">—</h2>
+
+                    <span class="metric-change">
+                        Most practiced industry
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- CASE GENERATOR -->
+
+            <div class="content-card generator-card">
+
+                <div class="card-heading">
+
+                    <div>
+                        <span class="card-eyebrow">AI POWERED</span>
+                        <h2>AI Case Generator</h2>
+                        <p>
+                            Create a realistic business case tailored to your goals.
+                        </p>
+                    </div>
+
+                    <div class="ai-badge">
+                        ⚡ Groq AI
+                    </div>
+
+                </div>
+
+
+                <div class="generator-form">
+
+                    <div class="form-group">
+
+                        <label for="industry">Industry</label>
+
+                        <select id="industry">
+                            <option value="FinTech">FinTech</option>
+                            <option value="Healthcare">Healthcare</option>
+                            <option value="E-commerce">E-commerce</option>
+                            <option value="SaaS">SaaS</option>
+                        </select>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label>Complexity</label>
+
+                        <div class="difficulty-buttons">
+
+                            <button
+                                class="difficulty active"
+                                data-value="beginner"
+                            >
+                                Beginner
+                            </button>
+
+                            <button
+                                class="difficulty"
+                                data-value="intermediate"
+                            >
+                                Intermediate
+                            </button>
+
+                            <button
+                                class="difficulty"
+                                data-value="advanced"
+                            >
+                                Advanced
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="focusArea">Focus Area</label>
+
+                        <input
+                            type="text"
+                            id="focusArea"
+                            value="Product Strategy"
+                            placeholder="e.g. Product Strategy"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="timeLimit">Time Limit</label>
+
+                        <div class="number-input">
+
+                            <input
+                                type="number"
+                                id="timeLimit"
+                                value="60"
+                                min="15"
+                                step="15"
+                            >
+
+                            <span>mins</span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <button class="generate-button" id="generateBtn">
+                    ⚡ Forge Case Study
+                </button>
+
+
+                <!-- GENERATED CASE -->
+
+                <div id="generatedCase" class="generated-case hidden">
+
+                    <div class="case-header">
+
+                        <div>
+                            <span class="case-label">GENERATED CASE</span>
+                            <h2 id="caseTitle">Case Title</h2>
+                        </div>
+
+                        <span class="case-status">
+                            Generated
+                        </span>
+
+                    </div>
+
+
+                    <div class="case-meta">
+
+                        <span id="caseIndustry">FinTech</span>
+                        <span>•</span>
+                        <span id="caseComplexity">Beginner</span>
+
+                    </div>
+
+
+                    <div class="case-section">
+
+                        <h3>Scenario</h3>
+
+                        <p id="caseScenario">
+                            Your generated case will appear here.
+                        </p>
+
+                    </div>
+
+
+                    <div class="case-section">
+
+                        <h3>Discussion Questions</h3>
+
+                        <ol id="discussionQuestions"></ol>
+
+                    </div>
+
+
+                    <button
+                        class="secondary-button"
+                        id="solveCaseBtn"
+                    >
+                        Solve This Case →
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- RECENT HISTORY -->
+
+            <div class="content-card">
+
+                <div class="section-heading">
+
+                    <div>
+                        <span class="card-eyebrow">YOUR ACTIVITY</span>
+                        <h2>Recent Case History</h2>
+                    </div>
+
+                    <button
+                        class="text-button"
+                        data-page="history"
+                    >
+                        View All →
+                    </button>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Case Title</th>
+                                <th>Industry</th>
+                                <th>Date</th>
+                                <th>Complexity</th>
+                                <th>Status</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="dashboardHistory">
+
+                            <tr>
+                                <td colspan="5" class="empty-row">
+                                    Loading your cases...
+                                </td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================= EVALUATE PAGE ================= -->
+
+        <section id="evaluatePage" class="page">
+
+            <div class="page-heading">
+
+                <div>
+                    <span class="eyebrow">Dashboard #1</span>
+                    <h1>Evaluate Solution</h1>
+                    <p>
+                        Let AI analyze your business strategy and provide feedback.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="content-card evaluation-card">
+
+                <div class="card-heading">
+
+                    <div>
+                        <span class="card-eyebrow">AI EVALUATION</span>
+                        <h2>Submit for Evaluation</h2>
+                        <p>
+                            Paste your long-form solution, strategy or breakdown below.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <div class="evaluation-fields">
+
+                    <div class="form-group">
+
+                        <label for="evaluationCaseId">
+                            Case ID
+                        </label>
+
+                        <input
+                            type="number"
+                            id="evaluationCaseId"
+                            value="1"
+                            min="1"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <textarea
+                    id="solutionInput"
+                    placeholder="Paste your solution, strategy, analysis or business recommendation here..."
+                ></textarea>
+
+
+                <button
+                    class="generate-button"
+                    id="evaluateBtn"
+                >
+                    ⚡ Submit for Evaluation
+                </button>
+
+
+                <div
+                    id="evaluationLoading"
+                    class="loading-box hidden"
+                >
+                    <div class="loader"></div>
+                    <span>AI is evaluating your solution...</span>
+                </div>
+
+
+                <!-- EVALUATION RESULTS -->
+
+                <div
+                    id="evaluationResults"
+                    class="evaluation-results hidden"
+                >
+
+                    <div class="result-score">
+
+                        <span>OVERALL SCORE</span>
+
+                        <strong id="overallScore">
+                            —
+                        </strong>
+
+                        <small>/ 10</small>
+
+                    </div>
+
+
+                    <div class="score-grid">
+
+                        <div>
+                            <span>Problem Understanding</span>
+                            <strong id="problemScore">—</strong>
+                        </div>
+
+                        <div>
+                            <span>Analytical Rigor</span>
+                            <strong id="analyticalScore">—</strong>
+                        </div>
+
+                        <div>
+                            <span>Business Acumen</span>
+                            <strong id="businessScore">—</strong>
+                        </div>
+
+                        <div>
+                            <span>Communication</span>
+                            <strong id="communicationScore">—</strong>
+                        </div>
+
+                        <div>
+                            <span>Feasibility</span>
+                            <strong id="feasibilityScore">—</strong>
+                        </div>
+
+                    </div>
+
+
+                    <div class="feedback-grid">
+
+                        <div class="feedback-box strengths">
+
+                            <h3>✓ Strengths</h3>
+
+                            <ul id="strengthsList"></ul>
+
+                        </div>
+
+
+                        <div class="feedback-box weaknesses">
+
+                            <h3>⚠ Areas to Improve</h3>
+
+                            <ul id="weaknessesList"></ul>
+
+                        </div>
+
+
+                        <div class="feedback-box suggestions">
+
+                            <h3>💡 Suggestions</h3>
+
+                            <ul id="suggestionsList"></ul>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================= HISTORY PAGE ================= -->
+
+        <section id="historyPage" class="page">
+
+            <div class="page-heading">
+
+                <div>
+                    <span class="eyebrow">Dashboard #1</span>
+                    <h1>Case History</h1>
+                    <p>
+                        Review the business cases you've generated.
+                    </p>
+                </div>
+
+                <button class="primary-button" id="refreshHistoryBtn">
+                    ↻ Refresh
+                </button>
+
+            </div>
+
+
+            <div class="content-card">
+
+                <div class="section-heading">
+
+                    <div>
+                        <span class="card-eyebrow">ALL CASES</span>
+                        <h2>Your Case History</h2>
+                    </div>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Case ID</th>
+                                <th>Case Title</th>
+                                <th>Industry</th>
+                                <th>Complexity</th>
+                                <th>Created</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="historyTableBody">
+
+                            <tr>
+                                <td colspan="5" class="empty-row">
+                                    Loading cases...
+                                </td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================= ANALYTICS PAGE ================= -->
+
+        <section id="analyticsPage" class="page">
+
+            <div class="page-heading">
+
+                <div>
+                    <span class="eyebrow">Dashboard #1</span>
+                    <h1>Analytics</h1>
+                    <p>
+                        Track your case-solving progress.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="content-card analytics-placeholder">
+
+                <div class="analytics-icon">
+                    ◒
+                </div>
+
+                <h2>Analytics Dashboard</h2>
+
+                <p>
+                    Your analytics will appear here as you generate and
+                    evaluate more cases.
+                </p>
+
+                <div class="analytics-stats">
+
+                    <div>
+                        <strong id="analyticsCases">0</strong>
+                        <span>Cases</span>
+                    </div>
+
+                    <div>
+                        <strong id="analyticsEvaluations">0</strong>
+                        <span>Evaluations</span>
+                    </div>
+
+                    <div>
+                        <strong id="analyticsAverage">—</strong>
+                        <span>Average Score</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- TOAST -->
+
+<div id="toast" class="toast hidden"></div>
+
+
+<script src="app.js"></script>
+
+</body>
+</html>

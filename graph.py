@@ -6,6 +6,7 @@ Builds the state machine with nodes, edges, and conditional routing
 from langgraph.graph import StateGraph, END
 from typing import Literal
 
+from app.workflows import state
 from app.workflows.state import CaseWorkflowState
 from app.workflows.nodes import CaseWorkflowNodes
 from app.logger import get_logger
@@ -38,34 +39,28 @@ def build_case_study_graph():
     workflow.add_edge("generate", "validate")
 
     # Conditional edge after validation
-    def route_after_validation(state: dict) -> str:
-        """
-        Router: Decide next step based on validation result
-        """
-        is_valid = state.get("is_valid", False)
-        refinement_count = state.get("refinement_count", 0)
-        max_refinements = state.get("max_refinements", 2)
-        validation_errors = state.get("validation_errors", [])
-        user_id = state.get("input", {}).get("user_id", "unknown")
-        
+    def route_after_validation(state):
+        # Safely handle both dictionaries and Pydantic objects using correct state names
+        if isinstance(state, dict):
+            is_valid = state.get("is_valid", False)
+            retries = state.get("refinement_count", 0)
+            max_retries = state.get("max_refinements", 2)
+        else:
+            is_valid = getattr(state, "is_valid", False)
+            retries = getattr(state, "refinement_count", 0)
+            max_retries = getattr(state, "max_refinements", 2)
+
         if is_valid:
-            logger.info("validation_passed", extra={"user_id": user_id, "score": state.get("validation_score", 0)})
             return "save"
-        elif refinement_count < max_refinements:
-            logger.info("validation_failed_will_refine", extra={"user_id": user_id, "attempt": refinement_count + 1, "max": max_refinements})
+        elif retries < max_retries:
             return "refine"
         else:
-            logger.error("validation_failed_max_retries", extra={"user_id": user_id, "max": max_refinements})
             return "error"
-    
+
+    # Apply the conditional routing
     workflow.add_conditional_edges(
         "validate",
-        route_after_validation,
-        {
-            "save": "save",
-            "refine": "refine",
-            "error": "error"
-        }
+        route_after_validation
     )
 
     # After refinement, go back to validation (loop)
@@ -85,22 +80,35 @@ def build_case_study_graph():
     return graph
 
 
-async def _handle_error(state: dict) -> dict:
+async def _handle_error(state) -> dict:
     """
     Error handler node
     Called when max refinements exceeded
     """
+    # Safely extract values preventing AttributeError crashes
+    if isinstance(state, dict):
+        user_input = state.get("input", {})
+        user_id = user_input.get("user_id") if isinstance(user_input, dict) else getattr(user_input, "user_id", None)
+        workflow_error = state.get("workflow_error", "Failed to generate valid case after max refinements")
+        validation_errors = state.get("validation_errors", [])
+    else:
+        user_input = getattr(state, "input", None)
+        user_id = getattr(user_input, "user_id", None) if user_input else None
+        workflow_error = getattr(state, "workflow_error", "Failed to generate valid case after max refinements")
+        validation_errors = getattr(state, "validation_errors", [])
+
     logger.error(
         "workflow_error_node",
         extra={
-            "user_id": state.input.user_id,
-            "error": state.workflow_error,
-            "validation_errors": state.validation_errors
+            "user_id": user_id,
+            "error": workflow_error,
+            "validation_errors": validation_errors
         }
     )
+    
     return {
         "workflow_status": "error",
-        "workflow_error": "Failed to generate valid case after max refinements"
+        "workflow_error": workflow_error
     }
 
 
