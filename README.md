@@ -1,41 +1,45 @@
-# CaseForge 
-
+# CaseForge
+ 
 **AI-Powered Case Study Generator for Professional Development**
-
+ 
 Transform how students learn business strategy through dynamic, AI-generated case studies with intelligent evaluation and personalized feedback.
-
+ 
+Built as part of the LMS platform at Sketch Brains.
+ 
 ---
-
-##  Overview
-
-CaseForge is an intelligent case study generation platform built for educational institutions and corporate training. It uses **LangGraph state machines** and **LLMs** to create unique, realistic business scenarios on-demand—no templates, no repeats.
-
-**Current Status:** Phase 2 - LangGraph + Tools ✅
-
+ 
+## Status
+ 
+**Backend: deployable.** Full generate → validate → evaluate → persist loop is verified end-to-end against a live Postgres database. Not yet live — see [What's Left](#whats-left) below.
+ 
 ---
-
-##  Features
-
-###  For Students
-- **Dynamic Case Generation** - Unique cases generated every time
-- **Multi-Level Difficulty** - Beginner, Intermediate, Advanced
-- **Intelligent Evaluation** - AI-powered solution scoring
-- **Personalized Feedback** - Actionable insights from AI mentor
-- **Case History** - Track your learning journey
-- **Industry Variety** - FinTech, Healthcare, E-commerce, SaaS, and more
-
-###  For Institutions
-- **Scalable to 1000+ students** - Built for colleges
-- **No Content Management** - Cases generate automatically
-- **Progress Tracking** - Monitor student performance
-- **API-First** - Integrate with existing LMS platforms
-- **Real Data Tools** - Market research, financial analysis, competitive intel
-- **Enterprise-Ready** - Production-grade infrastructure
-
+ 
+## Overview
+ 
+CaseForge is an intelligent case study generation platform built for educational institutions and corporate training. It uses **LangGraph state machines** and **LLMs** to create unique, realistic business scenarios on-demand — no templates, no repeats.
+ 
+This backend is designed to be embedded into an existing LMS. It has **no built-in auth or frontend by design** — the LMS handles user identity and UI; this service just exposes a REST API.
+ 
 ---
-
-##  Architecture
-
+ 
+## Features
+ 
+### For Students
+- Dynamic case generation — unique cases every time
+- Multi-level difficulty: Beginner, Intermediate, Advanced
+- AI-powered solution scoring across 5 dimensions
+- Personalized, metric-anchored feedback
+- Case history per user
+- Industry variety: FinTech, Healthcare, E-commerce, SaaS, and more
+### For Institutions
+- API-first — built to sit behind an existing LMS, not stand alone
+- No content management — cases generate automatically
+- Real data tools baked into generation: market research, financial analysis, competitive intel
+- Postgres-backed, ready for concurrent multi-user load
+---
+ 
+## Architecture
+ 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    FastAPI Server                       │
@@ -45,12 +49,13 @@ CaseForge is an intelligent case study generation platform built for educational
 │  ├─ POST /api/v1/cases/generate
 │  ├─ POST /api/v1/solutions/evaluate
 │  ├─ GET /api/v1/cases/{case_id}
-│  └─ GET /api/v1/users/{user_id}/cases
+│  ├─ GET /api/v1/users/{user_id}/cases
+│  └─ GET /api/v1/health
 │
 ├─ LangGraph State Machine (Workflow)
 │  ├─ Node: generate_case (Groq LLM)
 │  ├─ Node: validate_case (Quality checks)
-│  ├─ Node: refine_case (Auto-improve if needed)
+│  ├─ Node: refine_case (Auto-improve if invalid, up to 2 retries)
 │  └─ Node: save_case (Database persistence)
 │
 ├─ Services & Tools
@@ -59,29 +64,31 @@ CaseForge is an intelligent case study generation platform built for educational
 │  ├─ CaseService (Business logic)
 │  └─ Tools (Market research, Financial analysis, Competitive intel)
 │
-└─ Database (SQLAlchemy + SQLite)
+└─ Database (SQLAlchemy async + Supabase Postgres)
    ├─ case_studies (Generated cases)
    ├─ user_solutions (Student submissions)
-   └─ users (User profiles)
+   └─ users (User profiles — currently unused; user_id is passed in from the LMS as a plain int)
 ```
-
+ 
+**Note on auth:** there is no JWT/session layer in this service. `user_id` is trusted as-is from the request body. This is intentional for now since the LMS is the auth boundary — if that assumption ever changes, this needs a real auth layer before going further.
+ 
 ---
-
-##  Tech Stack
-
+ 
+## Tech Stack
+ 
 | Component | Technology |
 |-----------|-----------|
 | **Framework** | FastAPI 0.104 |
 | **Agentic AI** | LangGraph 0.0.15 |
-| **LLM** | Groq (llama-3.3-70b-versatile) |
-| **Database** | SQLAlchemy + SQLite |
-| **Language** | Python 3.12 |
+| **LLM** | Groq — `openai/gpt-oss-120b` (Groq deprecated the old Llama models in 2026; set via `GROQ_MODEL` env var) |
+| **Database** | SQLAlchemy (async) + Supabase Postgres, via Session Pooler |
+| **Language** | Python 3.12 (do **not** use 3.14 — `asyncpg` and `pydantic-core` don't have compatible wheels yet) |
 | **Async** | asyncio, uvicorn |
-
+ 
 ---
-
-## 📋 Project Structure
-
+ 
+## Project Structure
+ 
 ```
 caseforge/
 ├── main.py                          # FastAPI entry point
@@ -108,61 +115,50 @@ caseforge/
 │   ├── db.py                       # Database setup
 │   └── logger.py                   # Logging
 │
-├── scripts/
-│   └── init_db.py                  # One-time DB initialization
-│
-└── caseforge.db                    # SQLite database
+└── scripts/
+    └── init_db.py                  # One-time DB initialization
 ```
-
+ 
 ---
-
-## 🔧 Installation & Setup
-
+ 
+## Installation & Setup
+ 
 ### Prerequisites
-- Python 3.12+
-- Groq API key (free at https://console.groq.com)
-
-### 1. Clone & Setup
+- **Python 3.12** specifically (see Tech Stack note above)
+- A Groq API key — free at [console.groq.com](https://console.groq.com)
+- A Supabase project — free at [supabase.com](https://supabase.com)
+### 1. Clone & set up the venv
 ```bash
-git clone <your-repo>
-cd caseforge
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 2. Install Dependencies
-```bash
+git clone <this-repo>
+cd CASE_FORGE
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
-
-### 3. Configure Environment
-```bash
-cp .env.example .env
-# Edit .env with your Groq API key
+ 
+### 2. Configure environment
+Create a `.env` file in the project root:
+```
 GROQ_API_KEY=gsk_your_key_here
+GROQ_MODEL=openai/gpt-oss-120b
+DATABASE_URL=postgresql+asyncpg://postgres.<project-ref>:<url-encoded-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
 ```
-
-### 4. Initialize Database
+ 
+Get the `DATABASE_URL` from your Supabase project: **Connect → Direct (Connection string) tab → Session pooler**. If your DB password has special characters, URL-encode them (`@` → `%40`, etc.) or the connection string will fail to parse.
+ 
+### 3. Run the server
 ```bash
-python scripts/init_db.py
-# Or let the app initialize on startup
+python -m uvicorn main:app --reload
 ```
-
-### 5. Run the Server
-```bash
-uvicorn main:app --reload
-```
-
-Server runs at `http://localhost:8000`
-API docs at `http://localhost:8000/docs` (Swagger UI)
-
+Server runs at `http://localhost:8000`. Tables are created automatically on startup via `init_db()` — no manual migration step needed for a fresh Supabase project.
+ 
+API docs: `http://localhost:8000/docs`
+ 
 ---
-
-##  API Usage
-
+ 
+## API Usage
+ 
 ### Generate a Case Study
-
-**Request:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/cases/generate \
   -H "Content-Type: application/json" \
@@ -174,121 +170,55 @@ curl -X POST http://localhost:8000/api/v1/cases/generate \
     "time_limit": 60
   }'
 ```
-
-**Response:**
-```json
-{
-  "success": true,
-  "case_id": 2,
-  "case_uuid": "420c20a7-2eff-4218-b0d8-afae5f0578d2",
-  "title": "FinClarity Case Study",
-  "industry": "FinTech",
-  "complexity": "beginner",
-  "case_data": {
-    "company_name": "FinClarity",
-    "scenario_overview": "...",
-    "key_metrics": {...},
-    "discussion_questions": [...],
-    "hidden_assumptions": [...],
-    "solution_framework": "..."
-  },
-  "generation_time_ms": 2969,
-  "refinements_used": 0
-}
-```
-
+ 
 ### Evaluate a Solution
-
-**Request:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/solutions/evaluate \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": 1,
-    "case_id": 2,
+    "case_id": 1,
     "solution": "Your proposed solution text here..."
   }'
 ```
-
-**Response:**
-```json
-{
-  "success": true,
-  "solution_id": 1,
-  "scores": {
-    "overall": 8,
-    "problem_understanding": 9,
-    "analytical_rigor": 7,
-    "business_acumen": 8,
-    "communication": 8,
-    "feasibility": 7
-  },
-  "feedback": {
-    "strengths": ["Clear problem identification", "Data-driven approach"],
-    "weaknesses": ["Missed competitive positioning"],
-    "suggestions": ["Consider market trends", "Model financial impact"]
-  }
-}
+ 
+### Get a Case
+```bash
+curl http://localhost:8000/api/v1/cases/1
 ```
-
-### Get User's Case History
-
-**Request:**
+ 
+### Get a User's Case History
 ```bash
 curl http://localhost:8000/api/v1/users/1/cases
 ```
-
-**Response:**
-```json
-{
-  "success": true,
-  "user_id": 1,
-  "total": 2,
-  "cases": [
-    {
-      "id": 2,
-      "uuid": "420c20a7-...",
-      "title": "FinClarity Case Study",
-      "industry": "FinTech",
-      "complexity": "beginner",
-      "created_at": "2026-05-11T02:04:52"
-    },
-    ...
-  ]
-}
+ 
+### Health Check
+```bash
+curl http://localhost:8000/api/v1/health
 ```
-
+ 
 ---
-
+ 
 ## LangGraph Workflow
-
-The heart of CaseForge is a **state machine** that ensures high-quality case generation:
-
+ 
 ```
 START
   ↓
-[GENERATE] - LLM creates raw case
+[GENERATE] - LLM creates raw case, using market/financial/competitive tools
   ↓
 [VALIDATE] - Check quality & completeness
   ↓
-  ├─ ✅ Valid? → [SAVE] → END
-  │
-  ├─ ❌ Invalid & retries left? → [REFINE] → back to VALIDATE
-  │
-  └─ ❌ Max retries? → [ERROR] → END
+  ├─ Valid?               → [SAVE] → END
+  ├─ Invalid, retries left → [REFINE] → back to VALIDATE
+  └─ Max retries hit       → [ERROR] → END
 ```
-
-**Features:**
-- ✅ Automatic validation of case structure
-- ✅ Self-healing - refines bad cases automatically
-- ✅ Prevents invalid cases from being saved
-- ✅ Full audit trail in logs
-- ✅ Sub-3 second generation time
-
+ 
+Verified in testing: `refinements_used: 0` on first-try generations against `gpt-oss-120b` — validation is passing cleanly without needing the refine loop.
+ 
 ---
-
-## 📊 Database Schema
-
+ 
+## Database Schema
+ 
 ### case_studies
 ```sql
 CREATE TABLE case_studies (
@@ -297,7 +227,7 @@ CREATE TABLE case_studies (
   user_id INTEGER,
   title VARCHAR(200),
   industry VARCHAR(100),
-  complexity ENUM(beginner, intermediate, advanced),
+  complexity complexitylevel,   -- Postgres enum: beginner / intermediate / advanced
   focus_area VARCHAR(200),
   case_data JSON,
   generation_time_ms INTEGER,
@@ -307,7 +237,7 @@ CREATE TABLE case_studies (
   created_at DATETIME
 );
 ```
-
+ 
 ### user_solutions
 ```sql
 CREATE TABLE user_solutions (
@@ -324,109 +254,52 @@ CREATE TABLE user_solutions (
   created_at DATETIME
 );
 ```
-
+ 
 ---
-
-## Tools Available
-
-### Market Research Tool
-```python
-CaseStudyTools.market_research(industry, company_type)
-# Returns: market size, growth rate, trends, competitors
-```
-
-### Financial Analysis Tool
-```python
-CaseStudyTools.financial_analysis(industry, user_count, arpu)
-# Returns: CAC, LTV, payback period, projections
-```
-
-### Competitive Intelligence Tool
-```python
-CaseStudyTools.competitive_intelligence(industry, segment)
-# Returns: competitor analysis, white space, defensibility
-```
-
+ 
+## What's Left
+ 
+This backend works end-to-end locally against production Postgres. Not yet done:
+ 
+- [ ] **Deploy target** — not yet decided (Render / Railway / Fly / other). Blocks actual public deployment.
+- [ ] **CORS lockdown** — `main.py` currently allows `allow_origins=["*"]`. Needs to be scoped to the LMS's actual domain before going live. Blocked on getting that domain.
+- [ ] **DB session lifetime** — `get_db_session()` currently holds a Postgres connection open for the full request, including the multi-second Groq call. Fine at low volume; needs fixing (only open a session for the actual DB read/write, not the LLM call) before real concurrent load, given Supabase's pooler connection limits.
+- [ ] **Async task queue (Redis)** — for handling 100–300 concurrent users without blocking on Groq in-request. Not started. Requested but scope not yet confirmed with team lead — likely a second phase after initial deploy, not a blocker for first launch.
+- [ ] **Load testing (Locust)** — depends on the above being in place first.
+- [ ] **Rate limiting** — none currently. Would likely ride on the same Redis instance as the task queue.
 ---
-
-## Metrics & Performance
-
-| Metric | Value |
-|--------|-------|
-| **Case Generation Time** | ~2-4 seconds |
-| **Validation Success Rate** | ~95% (first try) |
-| **Average Refinements** | 0.1 per case |
-| **API Response Time (p95)** | <5 seconds |
-| **Database Queries/Case** | 3-5 |
-| **Scalability Target** | 1000+ concurrent students |
-
-
-
-##  Security
-
-- ✅ Environment variables for secrets
-- ✅ Input validation (Pydantic)
-- ✅ SQL injection prevention (SQLAlchemy)
-- ✅ Rate limiting ready (middleware)
-- ✅ Error handling without exposing internals
-- ✅ Logging for audit trails
-
+ 
+## Known Issues / Gotchas
+ 
+- **Python 3.14 will not work.** `asyncpg` and `pydantic-core` (compiled dependencies) don't yet have 3.14 wheels — use 3.12.
+- If you hit `ForwardRef._evaluate() missing 1 required keyword-only argument: 'recursive_guard'` on import, it means your Python patch version is 3.12.4+ and your `pydantic` is too old — this repo already pins `pydantic>=2.9.0` to avoid it, don't downgrade it.
+- Supabase's **Session pooler** (port 5432) is what's configured here, not the Transaction pooler (6543) — the transaction pooler breaks asyncpg's default prepared-statement behavior with SQLAlchemy unless explicitly disabled.
+- Cross-region latency is real: Supabase pooler region vs. server region adds a few seconds to DB round-trips. Worth picking a region close to wherever this actually deploys.
 ---
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Test locally
-4. Commit with clear messages
-5. Push and create PR
-
+ 
+## Security
+ 
+- Environment variables for secrets (never commit `.env`)
+- Input validation via Pydantic
+- SQL injection prevention via SQLAlchemy
+- No auth layer — see Architecture note above; the LMS is the trust boundary
+- Error handling without exposing internals
 ---
-
-## License
-
-Proprietary - For educational use only
-
----
-
-##  Author
-
-Built for college students by Aniketh Cheerath
-
+ 
+## Author
+ 
+Built by Aniketh Cheerath — Sketch Brains
+ 
 **Contact:** cheerathaniketh@gmail.com
-
+ 
 ---
-
-## Support
-
-### Common Issues
-
-**Q: Groq API key not working?**
-- Check `.env` file has `GROQ_API_KEY=...`
-- Verify API key is active at https://console.groq.com
-- Restart server after changing `.env`
-
-**Q: Cases are too generic?**
-- Tools are integrated - they provide real market data
-- Prompts are continuously improved
-- Each case is unique - never repeats
-
-**Q: How to scale to 1000+ students?**
-- Database is async-ready
-- Use PostgreSQL instead of SQLite for production
-- Add Redis caching for prompts
-- Use load balancer + multiple server instances
-- Consider Ray for distributed LLM calls
-
----
-
-##  Resources
-
+ 
+## Resources
+ 
 - [LangGraph Docs](https://python.langchain.com/docs/langgraph)
 - [FastAPI Docs](https://fastapi.tiangolo.com)
 - [Groq API Docs](https://console.groq.com/docs)
+- [Supabase Docs](https://supabase.com/docs)
 - [SQLAlchemy Docs](https://docs.sqlalchemy.org)
 
----
 
-**Made with ❤️ for education**
