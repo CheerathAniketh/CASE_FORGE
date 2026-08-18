@@ -293,6 +293,19 @@ Built by Aniketh Cheerath — Sketch Brains
 **Contact:** cheerathaniketh@gmail.com
  
 ---
+
+## Changelog
+
+### Aug 18, 2026
+- **Redis caching (Upstash)** — wired `cache.py` into `POST /api/v1/cases/generate`. Uses a per-user idempotency guard (`case:{user_id}:{industry}:{complexity}:{focus_area}`, 10s TTL) to prevent duplicate case generation on double-submits, without caching case *content* — every unique request still generates a fresh case, preserving the "no repeats" guarantee.
+- **Leaderboard endpoint** — exposed `LeaderboardService` via `GET /api/v1/leaderboard`, supporting `metric` (`average_score` / `total_solved` / `best_score` / `sum_score`) and `limit` query params. Computed live from `user_solutions` via SQLAlchemy aggregates — no caching layer on this yet.
+- Switched local dev Redis from Valkey (system package) to Upstash (cloud REST API) to match production usage at ~300-user LMS scale, per team lead's direction. Local Valkey install is unused by the app now — kept around for local `redis-cli`-style debugging only.
+- Fixed `GROQ_MODEL` — was still pointing at deprecated `llama-3.3-70b-versatile` in local `.env`, causing startup 404s. Confirmed working against `openai/gpt-oss-120b`.
+
+**Still outstanding:** DB session lifetime issue (open Postgres connection held across the multi-second Groq call) — noted in "What's Left" above, becomes more urgent now that caching + leaderboard add more concurrent DB/API traffic per request cycle. No caching yet on leaderboard reads.
+
+---
+
  
 ## Resources
  

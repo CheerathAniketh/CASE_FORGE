@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
+from app.services.cache import cache_get, cache_set
 from app.db import get_db_session
 from app.services.case import CaseService
 from app.services.workflow import WorkflowService
 from app.logger import get_logger
-
+from app.services.leaderboard import LeaderboardService, RankingMetric, DEFAULT_METRIC
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1")
@@ -31,14 +31,35 @@ class EvaluateSolutionRequest(BaseModel):
 
 # ============ ENDPOINTS ============
 
+@router.get("/leaderboard")
+async def get_leaderboard(
+    metric: RankingMetric = DEFAULT_METRIC,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Get ranked leaderboard by a given metric"""
+    service = LeaderboardService(db)
+    rankings = await service.get_leaderboard(metric=metric, limit=limit)
+    return {
+        "success": True,
+        "metric": metric,
+        "leaderboard": rankings,
+    }
 @router.post("/cases/generate")
 async def generate_case(
     request: GenerateCaseRequest,
     db: AsyncSession = Depends(get_db_session),
 ):
     """Generate a new case study using LangGraph"""
+    cache_key = f"case:{request.user_id}:{request.industry}:{request.complexity}:{request.focus_area}"
+
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        logger.info(f"Cache hit for {cache_key} — returning existing case, not regenerating")
+        return cached
+
     logger.info(f"User {request.user_id} generating case: {request.industry}")
-    
+
     service = WorkflowService(db)
     result = await service.generate_case_with_workflow(
         user_id=request.user_id,
@@ -47,13 +68,13 @@ async def generate_case(
         focus_area=request.focus_area,
         time_limit=request.time_limit,
     )
-    
+
     if not result["success"]:
         logger.error(f"Generation failed: {result['error']}")
         raise HTTPException(status_code=500, detail=result["error"])
-    
+
     case = result["case"]
-    return {
+    response = {
         "success": True,
         "case_id": case.id,
         "case_uuid": case.uuid,
@@ -65,6 +86,8 @@ async def generate_case(
         "refinements_used": result["refinements_used"],
     }
 
+    await cache_set(cache_key, response, ttl_seconds=10)
+    return response
 
 @router.post("/solutions/evaluate")
 async def evaluate_solution(
