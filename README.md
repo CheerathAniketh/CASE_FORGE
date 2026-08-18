@@ -305,7 +305,16 @@ Built by Aniketh Cheerath — Sketch Brains
 **Still outstanding:** DB session lifetime issue (open Postgres connection held across the multi-second Groq call) — noted in "What's Left" above, becomes more urgent now that caching + leaderboard add more concurrent DB/API traffic per request cycle. No caching yet on leaderboard reads.
 
 ---
+### Aug 18, 2026 (evening)
+- **DB session lifetime fix** — the biggest concurrency risk flagged in "What's Left" is resolved. `WorkflowService` and `CaseService.evaluate_solution` no longer hold a Postgres session open across the multi-second Groq call. Sessions now open only immediately before/after Groq calls, for the actual DB read/write, then close right away. Verified via log timestamps: `db_session_opening` now fires only after `workflow_execution_complete`, not before the Groq call. `GET /cases/{id}` and `GET /users/{id}/cases` were left on request-scoped `Depends()` sessions since they have no slow external call in the middle — no change needed there.
+- Fixed a stale hardcoded model name (`llama-3.3-70b-versatile`) in `WorkflowService`'s saved DB record — now reads from `settings.GROQ_MODEL` so `case_studies.model_used` accurately reflects what actually generated the case.
+- Flagged `CaseService.generate_case` as likely dead code — `routes.py` calls `WorkflowService.generate_case_with_workflow()` instead, not this method. Left it functional (fixed to match the new session pattern) but needs confirming with the team before removing.
+- Verified end-to-end: case generation, solution evaluation, and leaderboard all re-tested after the refactor — identical behavior from the API's perspective, connections just released faster under the hood.
+- **Async task queue** — scoped out three approaches (FastAPI `BackgroundTasks`, RQ/arq + worker process on Upstash's Redis, or Upstash QStash). Holding off on building until scope is confirmed with team lead, per "What's Left" — the three options solve meaningfully different problems and building the wrong one wastes real time.
 
+**Updated "What's Left" status:** DB session lifetime — ✅ done. Async task queue — still not started, now with a scoped decision pending from team lead.
+
+---
  
 ## Resources
  
