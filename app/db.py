@@ -16,7 +16,9 @@ engine = create_async_engine(
     pool_pre_ping=True,
 )
 
-# Create session factory
+# Session factory — importable directly (as `async_session`) by services that
+# need short-lived sessions opened AFTER a slow external call (e.g. Groq),
+# rather than a request-scoped session held open for the whole request.
 async_session = sessionmaker(
     engine,
     class_=AsyncSession,
@@ -26,7 +28,14 @@ async_session = sessionmaker(
 
 
 async def get_db_session() -> AsyncSession:
-    """Get database session for dependency injection"""
+    """Request-scoped session for FastAPI's Depends().
+
+    Use this ONLY for routes that do pure DB reads/writes with no slow
+    external call (Groq, etc.) in between — e.g. GET /cases/{id},
+    GET /users/{id}/cases. For /cases/generate and /solutions/evaluate,
+    services open their own short-lived session via `async_session`
+    directly, so the connection isn't held open during the Groq call.
+    """
     async with async_session() as session:
         yield session
 

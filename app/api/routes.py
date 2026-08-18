@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.services.cache import cache_get, cache_set
+
 from app.db import get_db_session
 from app.services.case import CaseService
 from app.services.workflow import WorkflowService
-from app.logger import get_logger
+from app.services.cache import cache_get, cache_set
 from app.services.leaderboard import LeaderboardService, RankingMetric, DEFAULT_METRIC
+from app.logger import get_logger
+
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1")
@@ -31,26 +33,14 @@ class EvaluateSolutionRequest(BaseModel):
 
 # ============ ENDPOINTS ============
 
-@router.get("/leaderboard")
-async def get_leaderboard(
-    metric: RankingMetric = DEFAULT_METRIC,
-    limit: int = 50,
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Get ranked leaderboard by a given metric"""
-    service = LeaderboardService(db)
-    rankings = await service.get_leaderboard(metric=metric, limit=limit)
-    return {
-        "success": True,
-        "metric": metric,
-        "leaderboard": rankings,
-    }
 @router.post("/cases/generate")
-async def generate_case(
-    request: GenerateCaseRequest,
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Generate a new case study using LangGraph"""
+async def generate_case(request: GenerateCaseRequest):
+    """Generate a new case study using LangGraph.
+
+    NOTE: no `db` dependency here anymore. WorkflowService opens its own
+    short-lived DB session internally, only for the final save — not held
+    open during the multi-second Groq call. See app/services/workflow.py.
+    """
     cache_key = f"case:{request.user_id}:{request.industry}:{request.complexity}:{request.focus_area}"
 
     cached = await cache_get(cache_key)
@@ -60,7 +50,7 @@ async def generate_case(
 
     logger.info(f"User {request.user_id} generating case: {request.industry}")
 
-    service = WorkflowService(db)
+    service = WorkflowService()
     result = await service.generate_case_with_workflow(
         user_id=request.user_id,
         industry=request.industry,
@@ -89,25 +79,28 @@ async def generate_case(
     await cache_set(cache_key, response, ttl_seconds=10)
     return response
 
+
 @router.post("/solutions/evaluate")
-async def evaluate_solution(
-    request: EvaluateSolutionRequest,
-    db: AsyncSession = Depends(get_db_session),
-):
-    """Evaluate a student's solution"""
+async def evaluate_solution(request: EvaluateSolutionRequest):
+    """Evaluate a student's solution.
+
+    NOTE: no `db` dependency here anymore. CaseService opens short-lived
+    sessions internally (fetch case -> Groq call with no session open ->
+    save result). See app/services/case.py.
+    """
     logger.info(f"User {request.user_id} evaluating solution for case {request.case_id}")
-    
-    service = CaseService(db)
+
+    service = CaseService()
     result = await service.evaluate_solution(
         user_id=request.user_id,
         case_id=request.case_id,
         solution_text=request.solution,
     )
-    
+
     if not result["success"]:
         logger.error(f"Evaluation failed: {result['error']}")
         raise HTTPException(status_code=500, detail=result["error"])
-    
+
     return {
         "success": True,
         "solution_id": result["solution_id"],
@@ -118,16 +111,17 @@ async def evaluate_solution(
 
 @router.get("/cases/{case_id}")
 async def get_case(case_id: int, db: AsyncSession = Depends(get_db_session)):
-    """Get a specific case study"""
+    """Get a specific case study. Pure fast read — request-scoped session
+    via Depends() is fine here, no Groq call in this path."""
     from app.models import CaseStudy
-    
+
     query = select(CaseStudy).where(CaseStudy.id == case_id)
     result = await db.execute(query)
     case = result.scalars().first()
-    
+
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    
+
     return {
         "success": True,
         "case_id": case.id,
@@ -138,11 +132,12 @@ async def get_case(case_id: int, db: AsyncSession = Depends(get_db_session)):
 
 
 @router.get("/users/{user_id}/cases")
-async def get_user_cases(user_id: int, db: AsyncSession = Depends(get_db_session)):
-    """Get user's case history"""
-    service = CaseService(db)
+async def get_user_cases(user_id: int):
+    """Get user's case history. CaseService opens its own short-lived
+    session internally now (see app/services/case.py)."""
+    service = CaseService()
     cases = await service.get_user_cases(user_id)
-    
+
     return {
         "success": True,
         "user_id": user_id,
@@ -158,6 +153,23 @@ async def get_user_cases(user_id: int, db: AsyncSession = Depends(get_db_session
             for c in cases
         ],
         "total": len(cases),
+    }
+
+
+@router.get("/leaderboard")
+async def get_leaderboard(
+    metric: RankingMetric = DEFAULT_METRIC,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Get ranked leaderboard by a given metric. Pure fast read (SQL
+    aggregate query, no Groq call) — request-scoped session is fine here."""
+    service = LeaderboardService(db)
+    rankings = await service.get_leaderboard(metric=metric, limit=limit)
+    return {
+        "success": True,
+        "metric": metric,
+        "leaderboard": rankings,
     }
 
 

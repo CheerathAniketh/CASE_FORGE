@@ -3,9 +3,7 @@ Workflow Service
 Executes the LangGraph state machine for case generation
 """
 
-import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.db import async_session
 from app.workflows.state import CaseWorkflowState, CaseGenerationInput
 from app.models import CaseStudy, ComplexityLevel
 from app.logger import get_logger
@@ -18,10 +16,13 @@ class WorkflowService:
     """
     Service that executes LangGraph workflow
     Handles: generation → validation → refinement → saving
+
+    NOTE: no `db` session is taken in the constructor anymore. A session is
+    opened fresh, right before the final DB write, so the connection isn't
+    held open (and idle) during the multi-second Groq call inside the graph.
     """
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self):
         self.graph = case_study_graph
 
     async def generate_case_with_workflow(
@@ -34,7 +35,7 @@ class WorkflowService:
     ) -> dict:
         """
         Execute LangGraph workflow to generate a case study
-        
+
         Returns:
             {
                 "success": bool,
@@ -44,7 +45,7 @@ class WorkflowService:
                 "total_time_ms": int
             }
         """
-        
+
         logger.info(
             "workflow_generation_start",
             extra={
@@ -68,9 +69,10 @@ class WorkflowService:
 
             initial_state = CaseWorkflowState(input=input_state)
 
-            # Execute the graph
+            # Execute the graph — this is where the multi-second Groq call
+            # happens. No DB session is open during this whole block.
             logger.info("workflow_execution_start")
-            
+
             final_state_dict = await self.graph.ainvoke(
                 initial_state.model_dump(),
                 {"recursion_limit": 10}
@@ -104,7 +106,7 @@ class WorkflowService:
                     "refinements_used": final_state.refinement_count
                 }
 
-            # Save to database
+            # --- DB session opened HERE, only now, only for the save ---
             logger.info(
                 "workflow_saving_to_db",
                 extra={
@@ -118,22 +120,25 @@ class WorkflowService:
             except ValueError:
                 comp_enum = ComplexityLevel.INTERMEDIATE
 
-            case = CaseStudy(
-                user_id=user_id,
-                title=final_state.final_case.get("title", f"{industry} Case Study"),
-                industry=industry,
-                complexity=comp_enum,
-                focus_area=focus_area,
-                case_data=final_state.final_case,
-                generation_time_ms=final_state.total_time_ms,
-                model_used="llama-3.3-70b-versatile",
-                tokens_used=final_state.groq_tokens_used,
-                refinement_count=final_state.refinement_count
-            )
+            async with async_session() as session:
+                logger.info("db_session_opening")
+                case = CaseStudy(
+                    user_id=user_id,
+                    title=final_state.final_case.get("title", f"{industry} Case Study"),
+                    industry=industry,
+                    complexity=comp_enum,
+                    focus_area=focus_area,
+                    case_data=final_state.final_case,
+                    generation_time_ms=final_state.total_time_ms,
+                    model_used=case_study_graph_model_name(),
+                    tokens_used=final_state.groq_tokens_used,
+                    refinement_count=final_state.refinement_count
+                )
 
-            self.db.add(case)
-            await self.db.commit()
-            await self.db.refresh(case)
+                session.add(case)
+                await session.commit()
+                await session.refresh(case)
+            # --- session closed here, connection released back to pool ---
 
             logger.info(
                 "case_saved_successfully",
@@ -144,6 +149,8 @@ class WorkflowService:
                     "refinements_used": final_state.refinement_count
                 }
             )
+
+            logger.info("db_session_closed")
 
             return {
                 "success": True,
@@ -165,9 +172,16 @@ class WorkflowService:
                 },
                 exc_info=True
             )
-            await self.db.rollback()
             return {
                 "success": False,
                 "error": f"Workflow execution failed: {str(e)}",
                 "error_type": type(e).__name__
             }
+
+
+def case_study_graph_model_name() -> str:
+    """Returns the model actually configured via settings, instead of the
+    hardcoded 'llama-3.3-70b-versatile' string that was here before (stale —
+    that model is deprecated per the README, and doesn't match GROQ_MODEL)."""
+    from config import settings
+    return settings.GROQ_MODEL
