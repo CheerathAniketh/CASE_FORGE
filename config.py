@@ -19,10 +19,14 @@ class Settings(BaseSettings):
 
     # Groq API
     GROQ_API_KEY: str
-    GROQ_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_TIMEOUT: int = 30
     GROQ_MAX_TOKENS: int = 2048
     GROQ_TEMPERATURE: float = 0.7
+
+    # Upstash Redis (leaderboard caching)
+    UPSTASH_REDIS_REST_URL: str = ""
+    UPSTASH_REDIS_REST_TOKEN: str = ""
 
     # Logging
     LOG_LEVEL: str = "INFO"
